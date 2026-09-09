@@ -65,6 +65,36 @@ def test_coa_generation_no_shortfalls_skips_llm_call(monkeypatch):
     assert result["candidate_coas"][0]["coa_id"] == "COA_HOLD"
 
 
+def test_coa_generation_handles_markdown_code_fence(monkeypatch):
+    """Reproduces a real failure: Claude wraps JSON in ```json ... ``` even
+    when told to respond with JSON only. This must parse successfully,
+    not fall into the malformed-response fallback."""
+    fenced_response = (
+        "```json\n"
+        "[\n"
+        '  {"description": "Reroute via ROUTE_2", "affected_routes": ["ROUTE_2"], '
+        '"estimated_cost": 75.0, "estimated_risk": 0.25, '
+        '"rationale": "ROUTE_2 has spare capacity."}\n'
+        "]\n"
+        "```"
+    )
+    monkeypatch.setattr(coa_mod, "call_claude", lambda *a, **k: fenced_response)
+
+    state = {
+        "forecast": {
+            "horizon_hours": 24,
+            "projected_throughput": {"ROUTE_1": 0.0, "ROUTE_2": 100.0},
+            "projected_shortfalls": [{"route_id": "ROUTE_1", "risk": "high"}],
+        }
+    }
+    result = coa_mod.coa_generation_agent(state)
+
+    coa = result["candidate_coas"][0]
+    assert coa["description"] == "Reroute via ROUTE_2"
+    assert coa["estimated_risk"] == 0.25
+    assert "could not be parsed" not in coa["description"]
+
+
 def test_coa_generation_handles_malformed_json_gracefully(monkeypatch):
     monkeypatch.setattr(coa_mod, "call_claude", lambda *a, **k: "not valid json")
 
