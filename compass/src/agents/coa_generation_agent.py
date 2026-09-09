@@ -9,6 +9,7 @@ of this touches a real decision (see docs/architecture.md).
 """
 
 import json
+import re
 
 from src.orchestrator.state import CompassState, CourseOfAction
 from src.utils.llm_client import call_claude
@@ -22,6 +23,18 @@ estimated risk (0-1), and a one-sentence rationale grounded in the data \
 you were given. Respond ONLY with a JSON array of objects with keys: \
 description, affected_routes (list of route id strings), estimated_cost \
 (number), estimated_risk (number 0-1), rationale. No prose outside the JSON."""
+
+_CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
+
+
+def _strip_code_fence(text: str) -> str:
+    """
+    Strip a leading/trailing markdown code fence (```json ... ``` or
+    ``` ... ```) if present. Models frequently add this even when told
+    to respond with JSON only -- handle it defensively rather than
+    relying on prompt wording alone to prevent it.
+    """
+    return _CODE_FENCE_RE.sub("", text.strip()).strip()
 
 
 def _build_prompt(forecast: dict) -> str:
@@ -53,7 +66,7 @@ def coa_generation_agent(state: CompassState) -> CompassState:
     raw = call_claude(prompt, system=_SYSTEM_PROMPT)
 
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(_strip_code_fence(raw))
     except json.JSONDecodeError:
         # Fall back to a safe, clearly-flagged default rather than crashing
         # the pipeline on a malformed LLM response.
