@@ -54,6 +54,13 @@ class CompassState(TypedDict, total=False):
     # Sensing
     raw_feeds: List[Dict]
     logistics_snapshot: LogisticsSnapshot
+    # Per-route observed denial history (route_id -> bool), oldest to
+    # newest, strictly *before* the current logistics_snapshot -- this is
+    # what the rolling-baseline forecaster is scored/predicts against.
+    # Populated by the sensing agent when real or synthetic historical
+    # data is available; left empty/missing falls back to the simpler
+    # threat_assessment-based forecast.
+    denial_history: List[Dict[str, bool]]
 
     # Threat Assessment
     threat_assessment: ThreatAssessment
