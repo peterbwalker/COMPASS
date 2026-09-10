@@ -21,6 +21,44 @@ def test_rolling_denial_rate_empty_history():
     assert rolling_denial_rate([], window=4) == {}
 
 
+def test_shrinkage_pulls_estimate_toward_prior():
+    # 2 observations, both True -> raw average is 1.0
+    history = [{"R1": True}, {"R1": True}]
+
+    no_shrinkage = rolling_denial_rate(history, window=2, shrinkage_k=0.0)
+    assert no_shrinkage["R1"] == 1.0
+
+    shrunk = rolling_denial_rate(history, window=2, shrinkage_k=4.0, shrinkage_prior=0.2)
+    # (2*1 + 4*0.2) / (2 + 4) = 2.8 / 6
+    assert abs(shrunk["R1"] - (2.8 / 6)) < 1e-9
+    assert shrunk["R1"] < no_shrinkage["R1"]
+    assert shrunk["R1"] > 0.2  # still pulled toward but not all the way to the prior
+
+
+def test_shrinkage_improves_calibration_on_persistent_synthetic_data():
+    """
+    Reproduces the actual finding from prototyping: on data with a
+    persistent (bursty) contested state, a heavily-smoothed short-window
+    estimate beats both the raw rolling average and the flat base-rate
+    guess on Brier score. This isn't a tautology -- it's checked against
+    real generated data, so it'll catch a regression if the generator or
+    the shrinkage math changes in a way that breaks the effect.
+    """
+    config = ScenarioConfig(horizon_hours=240, timestep_hours=6, seed=1)
+    scenario = generate_scenario(config)
+    denials = scenario["ground_truth_denials"]
+
+    all_obs = [v for step in denials for v in step.values()]
+    base_rate = sum(all_obs) / len(all_obs)
+    flat_brier = base_rate * (1 - base_rate)
+
+    raw = backtest_rolling_baseline(denials, window=2)
+    shrunk = backtest_rolling_baseline(denials, window=2, shrinkage_k=4.0, shrinkage_prior=base_rate)
+
+    assert shrunk["overall"] < flat_brier
+    assert shrunk["overall"] < raw["overall"]
+
+
 def test_rolling_baseline_forecast_flags_high_risk_routes():
     history = [{"R1": True}, {"R1": True}, {"R1": True}]
     routes = [{"id": "R1", "capacity": 100}]
