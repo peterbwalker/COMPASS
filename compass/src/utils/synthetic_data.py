@@ -23,7 +23,20 @@ class ScenarioConfig:
     timestep_hours: int = 6
     base_denial_probability: float = 0.05
     threat_spike_probability: float = 0.15
-    threat_spike_multiplier: float = 6.0
+    # Denial probability while a route is in a contested episode. This is
+    # deliberately high and fairly deterministic: a route actually being
+    # actively denied (route cut, ambush, jamming) is usually reliably
+    # unusable, not just "somewhat riskier." Realism here matters --
+    # if contested-state denial is only modestly elevated, individual
+    # observations stay noisy even though the underlying cause persists,
+    # which defeats the point of adding persistence at all.
+    contested_denial_probability: float = 0.85
+    # Once a route becomes contested, it stays contested for a random
+    # number of timesteps in this range (inclusive) rather than resetting
+    # independently each step. This gives the data actual temporal
+    # structure -- an adversary holding a corridor doesn't usually let go
+    # after one timestep -- which a rolling-window model can exploit.
+    contested_duration_range: Tuple[int, int] = (2, 5)
     commodities: Tuple[str, ...] = ("fuel", "medical", "ammunition", "food")
     seed: int = 42
 
@@ -105,6 +118,10 @@ def generate_scenario(config: ScenarioConfig = None) -> Dict:
     snapshots = []
     ground_truth_denials = []
 
+    # Per-route countdown of remaining contested timesteps. 0 means the
+    # route is currently open/uncontested.
+    contested_remaining = {route["id"]: 0 for route in routes}
+
     num_steps = config.horizon_hours // config.timestep_hours
     for step in range(num_steps):
         hour = step * config.timestep_hours
@@ -113,18 +130,29 @@ def generate_scenario(config: ScenarioConfig = None) -> Dict:
         step_routes = []
         denials_this_step = {}
         for route in routes:
-            denial_prob = route["base_denial_probability"]
-            spiked = random.random() < config.threat_spike_probability
-            if spiked:
-                denial_prob = min(denial_prob * config.threat_spike_multiplier, 0.95)
+            route_id = route["id"]
+
+            if contested_remaining[route_id] == 0:
+                # Not currently contested -- roll for a new contestation
+                # episode starting this step.
+                if random.random() < config.threat_spike_probability:
+                    duration = random.randint(*config.contested_duration_range)
+                    contested_remaining[route_id] = duration
+
+            is_contested = contested_remaining[route_id] > 0
+            if is_contested:
+                denial_prob = config.contested_denial_probability
+                contested_remaining[route_id] -= 1
+            else:
+                denial_prob = route["base_denial_probability"]
 
             is_denied = random.random() < denial_prob
-            denials_this_step[route["id"]] = is_denied
+            denials_this_step[route_id] = is_denied
 
             step_routes.append({
                 **{k: v for k, v in route.items() if k != "base_denial_probability"},
                 "status": "closed" if is_denied else "open",
-                "threat_spike": spiked,
+                "threat_spike": is_contested,
             })
 
         # Simple randomized consumption to give inventory a nontrivial trend
