@@ -30,6 +30,16 @@ def test_generate_scenario_is_deterministic_with_seed():
     assert a["ground_truth_denials"] == b["ground_truth_denials"]
 
 
+def test_nodes_have_coordinates_within_configured_bbox():
+    bbox = (5.0, 120.0, 25.0, 140.0)  # min_lat, min_lon, max_lat, max_lon
+    config = ScenarioConfig(region_bbox=bbox, seed=3)
+    scenario = generate_scenario(config)
+
+    for node in scenario["nodes"]:
+        assert bbox[0] <= node["lat"] <= bbox[2]
+        assert bbox[1] <= node["lon"] <= bbox[3]
+
+
 def test_contested_episodes_persist_for_configured_duration():
     """
     With contested_duration_range fixed to a single value (3, 3), every
