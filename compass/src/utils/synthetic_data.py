@@ -38,7 +38,21 @@ class ScenarioConfig:
     # after one timestep -- which a rolling-window model can exploit.
     contested_duration_range: Tuple[int, int] = (2, 5)
     commodities: Tuple[str, ...] = ("fuel", "medical", "ammunition", "food")
+    # Fictional bounding box (min_lat, min_lon, max_lat, max_lon) nodes are
+    # placed within. Default is an open-ocean/island area in the western
+    # Pacific, deliberately not tied to any real named base or installation
+    # -- purely a plausible-looking backdrop for visualizing contested
+    # maritime/air logistics on a map. Override for a different theater.
+    region_bbox: Tuple[float, float, float, float] = (5.0, 120.0, 25.0, 140.0)
     seed: int = 42
+
+
+def _random_point_in_bbox(bbox: Tuple[float, float, float, float]) -> Dict[str, float]:
+    min_lat, min_lon, max_lat, max_lon = bbox
+    return {
+        "lat": random.uniform(min_lat, max_lat),
+        "lon": random.uniform(min_lon, max_lon),
+    }
 
 
 def _build_network(config: ScenarioConfig) -> Tuple[List[Dict], List[Dict]]:
@@ -47,11 +61,20 @@ def _build_network(config: ScenarioConfig) -> Tuple[List[Dict], List[Dict]]:
 
     nodes = []
     for i in range(config.num_ports):
-        nodes.append({"id": f"PORT_{i+1}", "type": "port", "status": "operational"})
+        nodes.append({
+            "id": f"PORT_{i+1}", "type": "port", "status": "operational",
+            **_random_point_in_bbox(config.region_bbox),
+        })
     for i in range(config.num_depots):
-        nodes.append({"id": f"DEPOT_{i+1}", "type": "depot", "status": "operational"})
+        nodes.append({
+            "id": f"DEPOT_{i+1}", "type": "depot", "status": "operational",
+            **_random_point_in_bbox(config.region_bbox),
+        })
     for i in range(config.num_forward_areas):
-        nodes.append({"id": f"FSA_{i+1}", "type": "forward_staging_area", "status": "operational"})
+        nodes.append({
+            "id": f"FSA_{i+1}", "type": "forward_staging_area", "status": "operational",
+            **_random_point_in_bbox(config.region_bbox),
+        })
 
     routes = []
     route_counter = 1
