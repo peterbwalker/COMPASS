@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.ipynb_checkpoints/
+*.egg-info/
+.pytest_cache/
+.DS_Store
+frontend/node_modules/
+frontend/dist/
+doctrine/*.pdf
