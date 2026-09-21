@@ -9,3 +9,16 @@ fastapi>=0.115.0
 uvicorn>=0.32.0
 pypdf>=4.0.0
 rank-bm25>=0.2.2
+
+# Optional: enables GPU-accelerated semantic embeddings for doctrine
+# retrieval (see src/doctrine/embeddings.py). Without these installed,
+# doctrine retrieval automatically falls back to BM25-only -- nothing
+# breaks, you just don't get the semantic-matching upgrade. Install if
+# you have a local GPU (or even just want better retrieval on CPU --
+# it's slower but still works):
+#   pip install sentence-transformers torch
+# For a GPU-enabled torch build matching your CUDA version specifically,
+# see https://pytorch.org/get-started/locally/ instead of the plain
+# PyPI package, which may install a CPU-only build by default.
+# sentence-transformers>=3.0.0
+# torch>=2.0.0

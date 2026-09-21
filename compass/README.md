@@ -1,52 +1,47 @@
-# COMPASS
+# Doctrine corpus
 
-**C**ontested **O**perations **M**ulti-agent **P**lanning & **A**daptive **S**ustainment **S**ystem
+Drop PDF or text files here to ground the COA generation agent in real
+DoD logistics doctrine. This folder is empty by default — the pipeline
+works fine without it (falls back to ungrounded LLM generation), and
+starts using retrieved excerpts automatically as soon as files appear
+here.
 
-COMPASS is a multi-agent, agentic pipeline for decision advantage in contested logistics. It fuses degraded/contested-environment signals, forecasts logistics network state, generates and evaluates courses of action (COAs), and surfaces auditable recommendations to a human decision-maker.
+## What to add
 
-Supporting work for the NTSA 2026 talk: *"The Logistics Kill Chain: Agentic Pipelines for Decision Advantage in Contested Environments."*
+See `docs/doctrine-references.md` for a curated starting list. Good
+first additions, in priority order:
 
-## Architecture
+1. **Joint Concept for Contested Logistics (JCCL)** — Joint Staff J4, 2022
+2. **JP 4-0, Joint Logistics** — the keystone joint doctrine document (2025 update)
+3. **FM 4-0, Sustainment Operations** — Army doctrine, explicitly assumes
+   contested-baseline logistics (Aug 2024)
 
-COMPASS is built as a [LangGraph](https://github.com/langchain-ai/langgraph) state graph. Each pipeline stage is a node; the graph is explicit, traceable, and supports human-in-the-loop interrupts before any recommendation is finalized.
+Download these yourself from authoritative sources — this keeps you in
+control of exactly which version of each document is in the corpus:
 
-```
-Sensing ──▶ Threat Assessment ──▶ Forecasting ──▶ COA Generation ──▶ Risk Evaluation ──▶ [HUMAN GATE] ──▶ Adjudication
-                                        ▲                                                        │
-                                        └────────────────── replan trigger ─────────────────────┘
-```
+- **jcs.mil/Doctrine/Joint-Doctrine-Pubs/** — Joint Chiefs of Staff official doctrine library
+- **armypubs.army.mil** — Army doctrine and field manuals
+- **doctrine.af.mil** — Air Force doctrine publications and notes
 
-See [`docs/architecture.md`](docs/architecture.md) for the full state schema and node-by-node design notes.
+## Notes
 
-## Repository layout
-
-```
-compass/
-├── src/
-│   ├── agents/          # One module per pipeline agent
-│   ├── orchestrator/    # LangGraph state schema + graph assembly
-│   └── utils/           # Shared helpers (data loaders, logging, etc.)
-├── notebooks/           # Colab-friendly prototyping notebooks
-├── docs/                # Architecture notes, design decisions
-└── tests/               # Unit tests per agent + graph integration tests
-```
-
-## Development workflow
-
-1. **Prototype in Colab** — draft/test individual agent logic (especially the forecasting and COA-generation models) in `notebooks/`.
-2. **Promote to `src/agents/`** — once an agent's logic stabilizes, lift it into a proper module with a clean function/class interface.
-3. **Wire into the graph** — register the agent as a node in `src/orchestrator/graph.py`.
-4. **Test** — add a unit test per agent and an integration test for any new graph path.
-
-## Getting started
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -m src.orchestrator.graph
-```
-
-## Status
-
-Early scaffold — agent modules currently contain placeholder logic to validate the graph topology and state-passing contract. See `docs/architecture.md` for the build sequence.
+- PDFs are gitignored by default (see `.gitignore`) — they're often large,
+  and redistributing official publications through your own repo isn't
+  necessary when everyone can pull the current version from the source.
+  If you want them version-controlled anyway (e.g., a private repo,
+  fixed to a specific doctrine version for reproducibility), remove the
+  `doctrine/*.pdf` line from `.gitignore`.
+- The retrieval layer is a fresh load per process start. If you add or
+  change files in this folder while the backend/notebook is already
+  running, call `src.doctrine.retrieval.reset_retriever()` to force a
+  reload, or just restart the process.
+- Retrieval is BM25 (keyword) by default, automatically upgraded to
+  hybrid BM25 + semantic embeddings if `sentence-transformers` and
+  `torch` are installed (see requirements.txt) -- no code changes
+  needed, `get_retriever()` detects this itself. Embeddings catch
+  passages that are conceptually relevant but share no vocabulary with
+  the query (e.g. "fuel replenishment" matching a passage about
+  "petroleum resupply"), which pure BM25 misses. A local GPU makes
+  embedding generation faster but isn't required -- it runs on CPU too,
+  just slower. See `src/doctrine/embeddings.py` for the embedding model
+  used and how to swap it.
