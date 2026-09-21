@@ -76,6 +76,36 @@ body {
   color: var(--text-secondary);
 }
 
+.hud-bar {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.hud-stat {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.02em;
+}
+
+.hud-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.hud-stat-coas {
+  color: var(--accent);
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+}
+
 .globe-pane {
   grid-area: globe;
   position: relative;
@@ -156,6 +186,52 @@ gmp-map-3d {
   accent-color: var(--accent);
 }
 
+.timeline-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.play-button {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--line);
+  color: var(--text-primary);
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-button:hover {
+  border-color: var(--accent);
+}
+
+.speed-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.speed-toggle button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.speed-toggle button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .panel-scroll {
   flex: 1;
   overflow-y: auto;
@@ -227,6 +303,51 @@ gmp-map-3d {
 .coa-card .coa-desc {
   font-size: 13px;
   margin-bottom: 8px;
+}
+
+.risk-bar-track {
+  height: 4px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.risk-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease-out;
+}
+
+.fade-in {
+  animation: fadeIn 0.35s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.loading-scanline {
+  position: relative;
+  padding: 20px 0;
+  overflow: hidden;
+}
+
+.loading-scanline::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(74,144,196,0.15), transparent);
+  animation: scan 1.4s linear infinite;
+}
+
+@keyframes scan {
+  from { left: -40%; }
+  to { left: 100%; }
 }
 
 .coa-card .coa-summary {

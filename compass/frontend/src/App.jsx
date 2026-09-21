@@ -42,16 +42,41 @@ export default function App() {
     setApiKey(apiKeyDraft);
   }
 
+  const routesNow = stepData?.snapshot?.routes || scenario?.routes || [];
+  const hud = {
+    open: routesNow.filter((r) => r.status === "open" && !r.threat_spike).length,
+    contested: routesNow.filter((r) => r.threat_spike).length,
+    closed: routesNow.filter((r) => r.status === "closed" && !r.threat_spike).length,
+    activeCoas: stepData?.candidate_coas?.length ?? 0,
+  };
+
   return (
     <div className="app-shell">
       <header className="app-header">
         <div className="wordmark">
           COMPASS<span>contested logistics decision support</span>
         </div>
-        <div className="step-readout">
-          {scenario ? `${scenario.num_steps} timesteps loaded` : "connecting to backend…"}
-          {error && ` — error: ${error}`}
-        </div>
+        {scenario ? (
+          <div className="hud-bar">
+            <span className="hud-stat">
+              <span className="hud-dot" style={{ background: "var(--status-open)" }} />
+              {hud.open} open
+            </span>
+            <span className="hud-stat">
+              <span className="hud-dot" style={{ background: "var(--status-contested)" }} />
+              {hud.contested} contested
+            </span>
+            <span className="hud-stat">
+              <span className="hud-dot" style={{ background: "var(--status-closed)" }} />
+              {hud.closed} closed
+            </span>
+            <span className="hud-stat hud-stat-coas">{hud.activeCoas} active COA{hud.activeCoas === 1 ? "" : "s"}</span>
+          </div>
+        ) : (
+          <div className="step-readout">
+            {error ? `error: ${error}` : "connecting to backend…"}
+          </div>
+        )}
       </header>
 
       <div className="globe-pane">
