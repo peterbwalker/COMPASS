@@ -106,6 +106,51 @@ body {
   border-left: 1px solid var(--line);
 }
 
+.backend-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backend-indicator {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.backend-indicator:hover {
+  border-color: var(--accent);
+  color: var(--text-secondary);
+}
+
+.backend-url-input {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--accent);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  width: 320px;
+}
+
+.backend-save-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .globe-pane {
   grid-area: globe;
   position: relative;

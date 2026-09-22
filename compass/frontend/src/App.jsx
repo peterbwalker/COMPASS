@@ -1,14 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Globe3D from "./components/Globe3D.jsx";
 import Timeline from "./components/Timeline.jsx";
 import CoaPanel from "./components/CoaPanel.jsx";
-import { fetchScenario, fetchStep } from "./api.js";
+import { fetchScenario, fetchStep, getBaseUrl, setBaseUrl } from "./api.js";
 
 export default function App() {
   const [apiKey, setApiKey] = useState(
     () => localStorage.getItem("gmaps_api_key_input") || ""
   );
   const [apiKeyDraft, setApiKeyDraft] = useState(apiKey);
+
+  // Backend URL is separately configurable (not just the Maps key) because
+  // running the backend on a remote GPU server behind a tunnel means this
+  // changes most sessions -- see api.js.
+  const [backendUrl, setBackendUrlState] = useState(() => getBaseUrl());
+  const [backendUrlDraft, setBackendUrlDraft] = useState(backendUrl);
+  const [editingBackend, setEditingBackend] = useState(false);
+  const [backendVersion, setBackendVersion] = useState(0); // bump to force a re-fetch
 
   const [scenario, setScenario] = useState(null); // { nodes, routes, num_steps }
   const [step, setStep] = useState(0);
@@ -17,22 +25,44 @@ export default function App() {
   const [error, setError] = useState(null);
   const [highlightedRouteIds, setHighlightedRouteIds] = useState([]);
 
+  // Client-side cache, separate from (and in addition to) the backend's
+  // own cache: this one skips the network round-trip entirely for a
+  // step already fetched in this session, rather than just skipping the
+  // expensive pipeline re-run on the server. A ref (not state) because
+  // updating it should never itself trigger a re-render.
+  const stepCacheRef = useRef(new Map());
+
   // Note: this stores the key in the browser's localStorage for dev
   // convenience only, so you don't retype it every reload while
   // iterating. Don't reuse this pattern for anything beyond local
   // prototyping on your own machine.
   useEffect(() => {
+    setScenario(null);
+    setStepData(null);
+    setError(null);
+    stepCacheRef.current.clear();
     fetchScenario()
       .then(setScenario)
       .catch((e) => setError(e.message));
-  }, []);
+  }, [backendVersion]);
 
   useEffect(() => {
     if (!scenario) return;
+
+    const cached = stepCacheRef.current.get(step);
+    if (cached) {
+      setStepData(cached);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     fetchStep(step)
-      .then(setStepData)
+      .then((data) => {
+        stepCacheRef.current.set(step, data);
+        setStepData(data);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [step, scenario]);
@@ -40,6 +70,23 @@ export default function App() {
   function handleSaveKey() {
     localStorage.setItem("gmaps_api_key_input", apiKeyDraft);
     setApiKey(apiKeyDraft);
+  }
+
+  function handleSaveBackendUrl() {
+    setBaseUrl(backendUrlDraft);
+    const resolved = getBaseUrl();
+    setBackendUrlState(resolved);
+    setBackendUrlDraft(resolved);
+    setEditingBackend(false);
+    setBackendVersion((v) => v + 1); // triggers a fresh fetchScenario against the new backend
+  }
+
+  function backendHostLabel(url) {
+    try {
+      return new URL(url).host;
+    } catch {
+      return url;
+    }
   }
 
   const routesNow = stepData?.snapshot?.routes || scenario?.routes || [];
@@ -56,6 +103,37 @@ export default function App() {
         <div className="wordmark">
           COMPASS<span>contested logistics decision support</span>
         </div>
+
+        <div className="backend-control">
+          {editingBackend ? (
+            <>
+              <input
+                type="text"
+                className="backend-url-input"
+                placeholder="http://localhost:8000 or your tunnel URL"
+                value={backendUrlDraft}
+                onChange={(e) => setBackendUrlDraft(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveBackendUrl()}
+                autoFocus
+              />
+              <button className="backend-save-btn" onClick={handleSaveBackendUrl}>
+                Connect
+              </button>
+            </>
+          ) : (
+            <button
+              className="backend-indicator"
+              onClick={() => {
+                setBackendUrlDraft(backendUrl);
+                setEditingBackend(true);
+              }}
+              title="Click to change backend URL"
+            >
+              backend: {backendHostLabel(backendUrl)}
+            </button>
+          )}
+        </div>
+
         {scenario ? (
           <div className="hud-bar">
             <span className="hud-stat">
