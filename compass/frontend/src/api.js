@@ -17,7 +17,13 @@ export function setBaseUrl(url) {
 }
 
 export async function fetchScenario() {
-  const res = await fetch(`${getBaseUrl()}/api/scenario`);
+  const res = await fetch(`${getBaseUrl()}/api/scenario`, {
+    // ngrok's free tier shows an interstitial "visit site" warning page on
+    // the first browser request to a tunnel, which would otherwise make
+    // this return HTML instead of JSON. This header tells ngrok to skip
+    // it. Harmless no-op against a plain localhost backend or cloudflared.
+    headers: { "ngrok-skip-browser-warning": "true" },
+  });
   if (!res.ok) throw new Error(`GET /api/scenario failed: ${res.status}`);
   return res.json();
 }
@@ -25,7 +31,10 @@ export async function fetchScenario() {
 export async function fetchStep(step, forceRefresh = false) {
   const res = await fetch(`${getBaseUrl()}/api/step`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
     body: JSON.stringify({ step, force_refresh: forceRefresh }),
   });
   if (!res.ok) throw new Error(`POST /api/step failed: ${res.status}`);
