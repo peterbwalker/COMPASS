@@ -17,7 +17,14 @@ export function setBaseUrl(url) {
 }
 
 export async function fetchScenario() {
-  const res = await fetch(`${getBaseUrl()}/api/scenario`);
+  const res = await fetch(`${getBaseUrl()}/api/scenario`, {
+    // ngrok's abuse-prevention interstitial doesn't see cookies from a
+    // direct browser visit on a cross-origin fetch() call, so it can
+    // still intercept programmatic requests and return its own page
+    // with no CORS headers at all -- this header tells it to skip that.
+    // Harmless no-op against a plain localhost backend or cloudflared.
+    headers: { "ngrok-skip-browser-warning": "true" },
+  });
   if (!res.ok) throw new Error(`GET /api/scenario failed: ${res.status}`);
   return res.json();
 }
@@ -25,7 +32,10 @@ export async function fetchScenario() {
 export async function fetchStep(step, forceRefresh = false) {
   const res = await fetch(`${getBaseUrl()}/api/step`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
     body: JSON.stringify({ step, force_refresh: forceRefresh }),
   });
   if (!res.ok) throw new Error(`POST /api/step failed: ${res.status}`);
