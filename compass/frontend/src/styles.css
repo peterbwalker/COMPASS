@@ -277,6 +277,54 @@ gmp-map-3d {
   color: var(--accent);
 }
 
+.guidance-block {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guidance-block .label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.guidance-input {
+  background: var(--bg-panel-raised);
+  border: 1px solid var(--line);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  resize: vertical;
+  min-height: 56px;
+}
+
+.guidance-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.guidance-analyze-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.guidance-analyze-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .panel-scroll {
   flex: 1;
   overflow-y: auto;
@@ -345,11 +393,6 @@ gmp-map-3d {
   font-size: 12px;
 }
 
-.coa-card .coa-desc {
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
 .risk-bar-track {
   height: 4px;
   background: var(--line);
@@ -362,6 +405,17 @@ gmp-map-3d {
   height: 100%;
   border-radius: 2px;
   transition: width 0.5s ease-out;
+}
+
+.coa-card .coa-desc {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.coa-card .coa-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .fade-in {
@@ -393,12 +447,6 @@ gmp-map-3d {
 @keyframes scan {
   from { left: -40%; }
   to { left: 100%; }
-}
-
-.coa-card .coa-summary {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
 }
 
 .route-legend {
