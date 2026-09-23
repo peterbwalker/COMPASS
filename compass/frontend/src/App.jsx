@@ -25,6 +25,13 @@ export default function App() {
   const [error, setError] = useState(null);
   const [highlightedRouteIds, setHighlightedRouteIds] = useState([]);
 
+  // Commander's Guidance: free-text prompt sent alongside the current
+  // step to steer COA generation. Always run fresh (force_refresh=true
+  // under the hood), never served from or written into the plain
+  // per-step cache -- see api.js / app.py.
+  const [guidanceText, setGuidanceText] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+
   // Client-side cache, separate from (and in addition to) the backend's
   // own cache: this one skips the network round-trip entirely for a
   // step already fetched in this session, rather than just skipping the
@@ -87,6 +94,16 @@ export default function App() {
     } catch {
       return url;
     }
+  }
+
+  function handleAnalyze() {
+    if (!guidanceText.trim()) return;
+    setAnalyzing(true);
+    setError(null);
+    fetchStep(step, true, guidanceText.trim())
+      .then((data) => setStepData(data))
+      .catch((e) => setError(e.message))
+      .finally(() => setAnalyzing(false));
   }
 
   const routesNow = stepData?.snapshot?.routes || scenario?.routes || [];
@@ -189,8 +206,20 @@ export default function App() {
         {scenario && (
           <Timeline step={step} numSteps={scenario.num_steps} onChange={setStep} />
         )}
+        <div className="guidance-block">
+          <div className="label">Commander's Guidance</div>
+          <textarea
+            className="guidance-input"
+            placeholder="e.g. 'Prioritize minimizing risk to personnel' or 'What if ROUTE_2 also becomes contested?'"
+            value={guidanceText}
+            onChange={(e) => setGuidanceText(e.target.value)}
+          />
+          <button className="guidance-analyze-btn" onClick={handleAnalyze} disabled={analyzing}>
+            {analyzing ? "Analyzing…" : "Analyze"}
+          </button>
+        </div>
         <div className="panel-scroll">
-          <CoaPanel stepData={stepData} loading={loading} onHoverCoa={setHighlightedRouteIds} />
+          <CoaPanel stepData={stepData} loading={loading || analyzing} onHoverCoa={setHighlightedRouteIds} />
         </div>
         <div className="route-legend">
           <span>
