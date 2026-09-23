@@ -29,14 +29,14 @@ export async function fetchScenario() {
   return res.json();
 }
 
-export async function fetchStep(step, forceRefresh = false) {
+export async function fetchStep(step, forceRefresh = false, userPrompt = null) {
   const res = await fetch(`${getBaseUrl()}/api/step`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "ngrok-skip-browser-warning": "true",
     },
-    body: JSON.stringify({ step, force_refresh: forceRefresh }),
+    body: JSON.stringify({ step, force_refresh: forceRefresh, user_prompt: userPrompt }),
   });
   if (!res.ok) throw new Error(`POST /api/step failed: ${res.status}`);
   return res.json();
