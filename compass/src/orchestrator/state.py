@@ -51,6 +51,10 @@ class RiskEvaluation(TypedDict):
 class CompassState(TypedDict, total=False):
     """Top-level graph state threaded through every node."""
 
+    # Optional free-text guidance from a human operator, injected into
+    # the COA generation prompt when present.
+    user_prompt: Optional[str]
+    
     # Sensing
     raw_feeds: List[Dict]
     logistics_snapshot: LogisticsSnapshot
