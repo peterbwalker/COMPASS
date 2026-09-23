@@ -69,7 +69,9 @@ def _build_prompt(forecast: dict, doctrine_block: str) -> str:
 def coa_generation_agent(state: CompassState) -> CompassState:
     forecast = state["forecast"]
 
-    if not forecast["projected_shortfalls"]:
+    user_prompt = state.get("user_prompt")
+
+    if not forecast["projected_shortfalls"] and not user_prompt:
         return {
             "candidate_coas": [
                 CourseOfAction(
@@ -88,8 +90,13 @@ def coa_generation_agent(state: CompassState) -> CompassState:
     doctrine_block = _format_doctrine_block(passages)
 
     prompt = _build_prompt(forecast, doctrine_block)
+    if user_prompt:
+        prompt += (
+            f"\nAdditional guidance from the human operator: {user_prompt}\n"
+            "Incorporate this guidance into your proposed courses of action "
+            "where relevant, and address it directly.\n"
+        )
     raw = call_claude(prompt, system=_SYSTEM_PROMPT)
-
     try:
         parsed = json.loads(_strip_code_fence(raw))
     except json.JSONDecodeError:
