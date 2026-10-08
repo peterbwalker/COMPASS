@@ -65,6 +65,7 @@ export default function MedevacView({ apiKey, backendVersion }) {
         scenario: { ...(over.opts ?? opts) },
         change: ch || undefined,
       });
+      if (!r || !r.scenario_view) throw new Error("The backend is running an older version (no scenario_view in the response). Pull the latest medevac_routes.py on the server and restart uvicorn.");
       setSim(r);
       setT(0);
       setPlaying(true);
