@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from src.medevac.advisor import ChangeRequest, advise, catalog, run_change
+from src.medevac.advisor import ChangeRequest, advise, apply_changes, catalog, run_change
 from src.medevac.evaluate import compare, run_once
 from src.medevac.policies import POLICIES
 from src.medevac.scenario import build_scenario
@@ -54,6 +54,7 @@ class SimulateRequest(BaseModel):
     seed: int = 1
     policy_params: Optional[Dict[str, float]] = None
     scenario: ScenarioOptions = ScenarioOptions()
+    change: Optional[ChangeRequest] = None   # advisor / what-if change; overrides `scenario` when present
     detail: bool = True
 
 
@@ -111,7 +112,20 @@ def get_catalog():
 def simulate(req: SimulateRequest):
     if req.policy not in POLICIES:
         raise HTTPException(400, f"unknown policy {req.policy!r}; choose from {sorted(POLICIES)}")
-    return run_once(_scenario(req.scenario), req.policy, req.seed, req.policy_params, detail=req.detail)
+    applied, warnings = [], []
+    params = dict(req.policy_params or {})
+    if req.change is not None:
+        sc, applied, warnings, pp = apply_changes(req.change)
+        params = {**(pp.get(req.policy) or {}), **params}
+    else:
+        sc = _scenario(req.scenario)
+    out = run_once(sc, req.policy, req.seed, params or None, detail=req.detail)
+    out["applied"], out["warnings"] = applied, warnings
+    if req.detail:  # everything a replay map needs to draw exactly what was simulated
+        v = sc.to_dict()
+        v.pop("streams", None)
+        out["scenario_view"] = v
+    return out
 
 
 @router.post("/compare")
