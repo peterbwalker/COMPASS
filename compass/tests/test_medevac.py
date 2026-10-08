@@ -234,3 +234,16 @@ def test_advisor_endpoints(monkeypatch):
 
     monkeypatch.setattr(mr, "get_llm", lambda: (lambda s, u: "garbage"))
     assert c.post("/api/medevac/advisor", json={"prompt": "whatever happens"}).status_code == 502
+
+
+def test_simulate_with_change_returns_scenario_view():
+    from fastapi.testclient import TestClient
+    from src.api.main import app
+    c = TestClient(app)
+    r = c.post("/api/medevac/simulate", json={"policy": "joint", "seed": 1, "detail": True,
+               "change": {"add_closures": [{"facility_id": "R3_OKINAWA", "start_h": 30, "end_h": 44}], "c17_count": 1}})
+    assert r.status_code == 200
+    b = r.json()
+    assert any(x["facility_id"] == "R3_OKINAWA" for x in b["scenario_view"]["closures"])
+    assert sum(1 for a in b["scenario_view"]["assets"] if a["id"].startswith("C17")) == 1
+    assert b["applied"] and "missions" in b and "patients" in b
