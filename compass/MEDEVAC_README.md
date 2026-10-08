@@ -17,6 +17,9 @@ runs MEDEVAC-only. Existing `src/api/app.py` is untouched.
 - GET  /api/medevac/policies        defaults for each policy
 - POST /api/medevac/simulate        {policy, seed, policy_params?, scenario?{surge_scale,threats_on,closures_on,c17_count,hospital_ship}, detail}
 - POST /api/medevac/compare         {policies, n_seeds, base_seed, ...}  paired, common-random-number comparison
+- GET  /api/medevac/catalog         ids the advisor / a UI can reference
+- POST /api/medevac/advisor         {prompt, n_seeds}  plain-language what-if: LLM -> validated change -> simulate -> explained result (needs ANTHROPIC_API_KEY)
+- POST /api/medevac/whatif          {change, n_seeds}  same, with a structured change and no LLM interpretation step
 
 ## Policies
 stovepipe (organic lift, same-service destination) | joint (pooled lift, fastest destination)
@@ -24,5 +27,10 @@ stovepipe (organic lift, same-service destination) | joint (pooled lift, fastest
 asset opportunity cost, capability matching, bypass, bundling, adaptive strategic batching).
 
 ## Layout
-src/medevac/{geo,models,params,scenario,casualties,engine,policies,evaluate}.py
+src/medevac/{geo,models,params,scenario,casualties,engine,policies,evaluate,advisor}.py
 src/api/{medevac_routes,main}.py    tests/test_medevac.py    ASSUMPTIONS.md
+
+## Advisor
+The LLM only (1) turns the request into a JSON change that is validated against real ids and ranges, and (2) explains
+simulator output. It never produces numbers. Invalid items are dropped and returned in `warnings`. Model: env
+`COMPASS_MEDEVAC_MODEL` (default claude-sonnet-5-5). Without a key, use /whatif.
