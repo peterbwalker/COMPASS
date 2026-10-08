@@ -1,4 +1,9 @@
-const DEFAULT_BASE_URL = "http://localhost:8000";
+// When the built app is served by the backend itself (the shared-demo setup),
+// the backend is simply wherever this page came from. In `npm run dev` it is
+// localhost:8000 unless changed with the backend button.
+const DEFAULT_BASE_URL = import.meta.env.PROD
+  ? window.location.origin
+  : "http://localhost:8000";
 const STORAGE_KEY = "compass_backend_url";
 
 // Backend URL is configurable at runtime (not just hardcoded) because
