@@ -2,13 +2,30 @@ import { useEffect, useRef, useState } from "react";
 import Globe3D from "./components/Globe3D.jsx";
 import Timeline from "./components/Timeline.jsx";
 import CoaPanel from "./components/CoaPanel.jsx";
+import MedevacView from "./components/MedevacView.jsx";
+import ModeSwitch from "./components/ModeSwitch.jsx";
 import { fetchScenario, fetchStep, getBaseUrl, setBaseUrl } from "./api.js";
+import "./medevac/medevac.css";
 
 export default function App() {
+  // Which use case is showing. Persisted so a reload lands where you were.
+  // Logistics keeps its own state while MEDEVAC is showing, and its (billed)
+  // pipeline calls only run while the Logistics tab is active.
+  const [mode, setModeState] = useState(() => localStorage.getItem("compass_mode") || "logistics");
+  // Once opened, the MEDEVAC view stays mounted (hidden) so switching tabs
+  // does not throw away the replay, comparison or advisor results.
+  const [medevacVisited, setMedevacVisited] = useState(() => mode === "medevac");
+  function setMode(m) {
+    localStorage.setItem("compass_mode", m);
+    if (m === "medevac") setMedevacVisited(true);
+    setModeState(m);
+  }
+
   const [apiKey, setApiKey] = useState(
     () => localStorage.getItem("gmaps_api_key_input") || ""
   );
   const [apiKeyDraft, setApiKeyDraft] = useState(apiKey);
+  const [editingKey, setEditingKey] = useState(false);
 
   // Backend URL is separately configurable (not just the Maps key) because
   // running the backend on a remote GPU server behind a tunnel means this
@@ -38,12 +55,17 @@ export default function App() {
   // expensive pipeline re-run on the server. A ref (not state) because
   // updating it should never itself trigger a re-render.
   const stepCacheRef = useRef(new Map());
+  const loadedVersionRef = useRef(null);
 
   // Note: this stores the key in the browser's localStorage for dev
   // convenience only, so you don't retype it every reload while
   // iterating. Don't reuse this pattern for anything beyond local
   // prototyping on your own machine.
   useEffect(() => {
+    if (mode !== "logistics") return;
+    // Only (re)load when the backend changed, not on every tab switch.
+    if (loadedVersionRef.current === backendVersion) return;
+    loadedVersionRef.current = backendVersion;
     setScenario(null);
     setStepData(null);
     setError(null);
@@ -51,10 +73,10 @@ export default function App() {
     fetchScenario()
       .then(setScenario)
       .catch((e) => setError(e.message));
-  }, [backendVersion]);
+  }, [backendVersion, mode]);
 
   useEffect(() => {
-    if (!scenario) return;
+    if (!scenario || mode !== "logistics") return;
 
     const cached = stepCacheRef.current.get(step);
     if (cached) {
@@ -72,11 +94,12 @@ export default function App() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [step, scenario]);
+  }, [step, scenario, mode]);
 
   function handleSaveKey() {
     localStorage.setItem("gmaps_api_key_input", apiKeyDraft);
     setApiKey(apiKeyDraft);
+    setEditingKey(false);
   }
 
   function handleSaveBackendUrl() {
@@ -106,6 +129,66 @@ export default function App() {
       .finally(() => setAnalyzing(false));
   }
 
+  // Shared by both modes (same backend, same tunnel).
+  const backendControl = (
+    <div className="backend-control">
+      {editingBackend ? (
+        <>
+          <input
+            type="text"
+            className="backend-url-input"
+            placeholder="http://localhost:8000 or your tunnel URL"
+            value={backendUrlDraft}
+            onChange={(e) => setBackendUrlDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSaveBackendUrl()}
+            autoFocus
+          />
+          <button className="backend-save-btn" onClick={handleSaveBackendUrl}>
+            Connect
+          </button>
+        </>
+      ) : (
+        <button
+          className="backend-indicator"
+          onClick={() => {
+            setBackendUrlDraft(backendUrl);
+            setEditingBackend(true);
+          }}
+          title="Click to change backend URL"
+        >
+          backend: {backendHostLabel(backendUrl)}
+        </button>
+      )}
+    </div>
+  );
+
+  const medevacUi =
+    mode === "medevac" || medevacVisited ? (
+      <div key="medevac" style={{ display: mode === "medevac" ? "block" : "none", height: "100%" }}>
+        <div className="mv-shell">
+          <header className="mv-header">
+            <div className="wordmark">
+              COMPASS<span>medical evacuation planning · interservice</span>
+            </div>
+            <ModeSwitch mode={mode} onChange={setMode} />
+            {backendControl}
+            <div className="mv-header-spacer" />
+            {editingKey ? (
+              <div className="mv-keyedit">
+                <input type="password" placeholder="Google Maps key (AIza…)" value={apiKeyDraft} onChange={(e) => setApiKeyDraft(e.target.value)} />
+                <button onClick={handleSaveKey}>Save</button>
+              </div>
+            ) : (
+              <button className="mv-keybtn" onClick={() => setEditingKey(true)}>
+                {apiKey ? "Maps key set" : "Add Maps key for 3D globe"}
+              </button>
+            )}
+          </header>
+          <MedevacView apiKey={apiKey} backendVersion={backendVersion} />
+        </div>
+      </div>
+    ) : null;
+
   const routesNow = stepData?.snapshot?.routes || scenario?.routes || [];
   const hud = {
     open: routesNow.filter((r) => r.status === "open" && !r.threat_spike).length,
@@ -114,42 +197,16 @@ export default function App() {
     activeCoas: stepData?.candidate_coas?.length ?? 0,
   };
 
-  return (
-    <div className="app-shell">
+  const logisticsUi = (
+    <div className="app-shell" key="logistics">
       <header className="app-header">
         <div className="wordmark">
           COMPASS<span>contested logistics decision support</span>
         </div>
 
-        <div className="backend-control">
-          {editingBackend ? (
-            <>
-              <input
-                type="text"
-                className="backend-url-input"
-                placeholder="http://localhost:8000 or your tunnel URL"
-                value={backendUrlDraft}
-                onChange={(e) => setBackendUrlDraft(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSaveBackendUrl()}
-                autoFocus
-              />
-              <button className="backend-save-btn" onClick={handleSaveBackendUrl}>
-                Connect
-              </button>
-            </>
-          ) : (
-            <button
-              className="backend-indicator"
-              onClick={() => {
-                setBackendUrlDraft(backendUrl);
-                setEditingBackend(true);
-              }}
-              title="Click to change backend URL"
-            >
-              backend: {backendHostLabel(backendUrl)}
-            </button>
-          )}
-        </div>
+        <ModeSwitch mode={mode} onChange={setMode} />
+
+        {backendControl}
 
         {scenario ? (
           <div className="hud-bar">
@@ -237,5 +294,13 @@ export default function App() {
         </div>
       </aside>
     </div>
+  );
+
+  // Same tree shape in both modes, so the MEDEVAC view keeps its state.
+  return (
+    <>
+      {mode === "logistics" ? logisticsUi : null}
+      {medevacUi}
+    </>
   );
 }

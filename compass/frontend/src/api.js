@@ -41,3 +41,34 @@ export async function fetchStep(step, forceRefresh = false, userPrompt = null) {
   if (!res.ok) throw new Error(`POST /api/step failed: ${res.status}`);
   return res.json();
 }
+
+// ---------------------------------------------------------------- MEDEVAC
+// Same backend, same tunnel, same ngrok header. Errors carry the server's
+// `detail` message when there is one (e.g. "Advisor needs ANTHROPIC_API_KEY").
+async function medevacRequest(path, body) {
+  const res = await fetch(`${getBaseUrl()}${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const j = await res.json();
+      detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(`${path} failed (${res.status})${detail ? `: ${detail}` : ""}`);
+  }
+  return res.json();
+}
+
+export const medevacScenario = () => medevacRequest("/api/medevac/scenario");
+export const medevacSimulate = (body) => medevacRequest("/api/medevac/simulate", body);
+export const medevacCompare = (body) => medevacRequest("/api/medevac/compare", body);
+export const medevacAdvisor = (prompt, nSeeds = 8) =>
+  medevacRequest("/api/medevac/advisor", { prompt, n_seeds: nSeeds });
