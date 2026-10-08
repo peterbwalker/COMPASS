@@ -134,3 +134,103 @@ def test_api_endpoints():
     assert r.status_code == 400
     r = c.post("/api/medevac/compare", json={"policies": ["joint", "optimized"], "n_seeds": 2})
     assert r.status_code == 200 and "paired_vs_first" in r.json()
+
+
+# ------------------------------------------------------------------ advisor
+import json as _json
+
+from src.medevac.advisor import (ChangeRequest, apply_changes, extract_json, fallback_narrative,
+                                 interpret, narrate, run_change)
+
+
+def test_extract_json_handles_fences_and_chatter():
+    assert extract_json('```json\n{"a": 1}\n```') == {"a": 1}
+    assert extract_json('Sure! Here you go: {"a": {"b": 2}} Hope that helps') == {"a": {"b": 2}}
+
+
+def test_apply_changes_validates_and_drops_bad_items():
+    ch = ChangeRequest(
+        c17_count=1, threat_scale=2.0,
+        add_closures=[{"facility_id": "R3_OKINAWA", "start_h": 30, "end_h": 40},
+                      {"facility_id": "NOPE", "start_h": 1, "end_h": 2},
+                      {"facility_id": "R3_GUAM", "start_h": 50, "end_h": 10}],
+        remove_assets=["C130_1", "GHOST"],
+        remove_by_mode=[{"mode": "SURFACE", "count": 5}, {"mode": "WARP", "count": 1}],
+        facility_overrides=[{"facility_id": "R2_LAOAG", "or_tables": 3}],
+        policy_params={"optimized": {"max_risk": 0.1, "bogus": 1}, "nopolicy": {"x": 1}},
+        unsupported=["weather"])
+    sc, applied, warn, pp = apply_changes(ch)
+    assert any("R3_OKINAWA closed" in a for a in applied)
+    assert sum(1 for a in sc.assets if a.id.startswith("C17")) == 1
+    assert "C130_1" not in {a.id for a in sc.assets}
+    assert not any(a.mode.value == "SURFACE" for a in sc.assets)
+    assert next(f for f in sc.facilities if f.id == "R2_LAOAG").or_tables == 3
+    assert pp == {"optimized": {"max_risk": 0.1}}
+    joined = " | ".join(warn)
+    for frag in ("NOPE", "invalid window", "GHOST", "WARP", "bogus", "nopolicy", "weather"):
+        assert frag in joined
+
+
+def test_interpret_retries_after_bad_json():
+    calls = []
+
+    def fake(system, user):
+        calls.append(user)
+        return "not json at all" if len(calls) == 1 else '```json\n{"summary": "x", "c17_count": 1}\n```'
+
+    ch, _ = interpret("lose two C-17s", SC, fake)
+    assert ch.c17_count == 1 and len(calls) == 2
+
+
+def test_interpret_gives_up_cleanly():
+    with pytest.raises(ValueError):
+        interpret("x", SC, lambda s, u: "nope")
+
+
+def test_run_change_and_narration_fallback_and_llm():
+    ch = ChangeRequest(c17_count=1, add_closures=[{"facility_id": "R3_OKINAWA", "start_h": 30, "end_h": 44}])
+    out = run_change("lose C-17s, Okinawa closes", ch, None, [1, 2, 3])
+    assert out["narrative_by_llm"] is False and "Best policy" in out["narrative"]
+    assert set(out["results"]["policies"]) == {"joint", "optimized"}
+    for r in out["results"]["policies"].values():
+        assert r["changed"]["mortality"] >= 0 and "ci95" in r["delta_deaths"]
+    seen = {}
+
+    def fake(system, user):
+        seen["user"] = user
+        return "LLM says hello"
+
+    text, used = narrate("p", out["applied"], out["warnings"], out["results"], fake)
+    assert used and text == "LLM says hello"
+    assert "FACTS" in seen["user"]
+    text2, used2 = narrate("p", [], [], out["results"], lambda s, u: (_ for _ in ()).throw(RuntimeError("down")))
+    assert not used2 and "notional" in text2
+
+
+def test_advisor_endpoints(monkeypatch):
+    from fastapi.testclient import TestClient
+    import src.api.medevac_routes as mr
+    from src.api.main import app
+    c = TestClient(app)
+
+    monkeypatch.setattr(mr, "get_llm", lambda: None)
+    assert c.post("/api/medevac/advisor", json={"prompt": "lose a C-17"}).status_code == 503
+
+    def fake(system, user):
+        if "FACTS" in user:
+            return "Narrated."
+        return _json.dumps({"summary": "one fewer C-17", "c17_count": 2})
+
+    monkeypatch.setattr(mr, "get_llm", lambda: fake)
+    r = c.post("/api/medevac/advisor", json={"prompt": "lose a C-17", "n_seeds": 2})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["narrative"] == "Narrated." and body["narrative_by_llm"] is True
+    assert body["interpretation"]["c17_count"] == 2
+
+    r = c.post("/api/medevac/whatif", json={"change": {"surge_scale": 1.5}, "n_seeds": 2})
+    assert r.status_code == 200 and "results" in r.json()
+    assert "facilities" in c.get("/api/medevac/catalog").json()
+
+    monkeypatch.setattr(mr, "get_llm", lambda: (lambda s, u: "garbage"))
+    assert c.post("/api/medevac/advisor", json={"prompt": "whatever happens"}).status_code == 502
